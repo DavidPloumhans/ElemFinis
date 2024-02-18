@@ -1,0 +1,9 @@
+C:/Users/Boss/Desktop/Elements finis/Programmes/Integrate/build/CMakeFiles/myFem.dir
+C:/Users/Boss/Desktop/Elements finis/Programmes/Integrate/build/CMakeFiles/run.dir
+C:/Users/Boss/Desktop/Elements finis/Programmes/Integrate/build/CMakeFiles/edit_cache.dir
+C:/Users/Boss/Desktop/Elements finis/Programmes/Integrate/build/CMakeFiles/rebuild_cache.dir
+C:/Users/Boss/Desktop/Elements finis/Programmes/Integrate/build/glfw/CMakeFiles/edit_cache.dir
+C:/Users/Boss/Desktop/Elements finis/Programmes/Integrate/build/glfw/CMakeFiles/rebuild_cache.dir
+C:/Users/Boss/Desktop/Elements finis/Programmes/Integrate/build/glfw/src/CMakeFiles/glfw.dir
+C:/Users/Boss/Desktop/Elements finis/Programmes/Integrate/build/glfw/src/CMakeFiles/edit_cache.dir
+C:/Users/Boss/Desktop/Elements finis/Programmes/Integrate/build/glfw/src/CMakeFiles/rebuild_cache.dir
