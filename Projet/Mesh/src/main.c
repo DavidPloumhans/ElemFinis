@@ -23,8 +23,8 @@ int main(void)
     femGeo* theGeometry = geoGetGeometry();
 
     // va falloir set toutes les valeurs pour theGeometry  du genre theGeometry->LxPlate =  Lx; etc
-    theGeometry->h1 = 1;
-    theGeometry->h2 = 1;
+    theGeometry->h1 = 1.0;
+    theGeometry->h2 = 1.0;
     theGeometry->l1 = 0.25;
     theGeometry->l2 = 0.5;
     theGeometry->r = 0.125;  // < h2 et < l1
