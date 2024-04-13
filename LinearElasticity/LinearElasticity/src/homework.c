@@ -78,81 +78,75 @@ double *femElasticitySolve(femProblem *theProblem)
     // les deux font référence au même pointeur
     // printf("Nombre d'éléments : %d\n", theMesh->nElem);
 
-    // Obtention des xsi, eta, des poids et des fonctions de forme ainsi que de leurs dérivées sur l'élément parent
-    for (k = 0; k < nLocal; k++) {  // itère sur les points de la règle d'intégration
-        theSpace->phi2(theRule->xsi[k], theRule->eta[k], phi);  // j'obtiens mes 3 ou 4 fonctions de forme
-        theSpace->dphi2dx(theRule->xsi[k], theRule->eta[k], dphidxsi, dphideta);  // j'obtiens les dérivées de ces fonctions de forme
-    }
-
     // boucle sur les éléments
-    for(i = 0; i < theMesh->nElem; i++) {
+    for(iElem = 0; iElem < theMesh->nElem; iElem++) {
         // va falloir calculer les intégrales pour l'élément
         // donc pour chaque noeud puis assembler la matrice A avec la numération des noeuds, pareil pour le vecteur B
-        // boucle sur les noeuds de l'élément
+        // boucle sur les noeuds de l'élément, pour créer le mapping et récupérer les coordonnées x et y
         for(j = 0; j < nLocal; j++) {
-            // on récupère les coordonnées du noeud
-            x[j] = theNodes->X[theMesh->elem[i*nLocal+j]];  // elem contient les numéros des noeuds de l'élément mais de manière fourbe.
-            y[j] = theNodes->Y[theMesh->elem[i*nLocal+j]];  // le i-ème élément comprend les noeuds dont les numéros vont de elem[i*nLocal] à elem[i*nLocal+nLocal-1]
-            // On va devoir calculer nos intégrales
-            // Il nous faut de quoi passer sur l'élément parent pour construire la matrice A de raideur et le vecteur B pour chaque noeud
-            // Ensuite, il faudra les placer adéquatement dans la grande matrice A et le grand vecteur B
-            // Il va y avoir 6 éléments à calculer (4 dans A et 2 dans B) avec 12 intégrales
+            map[j] = theMesh->elem[iElem * nLocal + j];  // juste le numéro global du jème noeud local
+            mapX[j] = 2 * map[j];  // Si tu écris la matrice 8x8, tu verras que t'as du xx en haut à gauche et yy en bas à droite donc cette numérotation est logique
+            mapY[j] = 2 * map[j] + 1;  // faut pas oublier que A est de taille 2*nbNoeuds x 2*nbNoeuds
+            // on récupère les coordonnées des noeuds de l'élément
+            x[j] = theNodes->X[map[j]];  // elem contient les numéros des noeuds de l'élément mais de manière fourbe.
+            y[j] = theNodes->Y[map[j]];  // le i-ème élément comprend les noeuds dont les numéros vont de elem[i*nLocal] à elem[i*nLocal+nLocal-1]
+        }
+        // boucle sur les noeuds de l'élément, qui sont aussi les points d'intégration
+        for(iInteg = 0; iInteg < theRule->n; iInteg++) {
+            // Toutes ces valeurs ne sont valables qu'au point iInteg  !!
+            // Obtention des xsi, eta, des poids et des fonctions de forme ainsi que de leurs dérivées sur l'élément parent     
+            theSpace->phi2(theRule->xsi[iInteg], theRule->eta[iInteg], phi);  // j'obtiens mes 3 ou 4 fonctions de forme
+            theSpace->dphi2dx(theRule->xsi[iInteg], theRule->eta[iInteg], dphidxsi, dphideta);  // j'obtiens les dérivées de ces fonctions de forme
+            
+            // On calcule le jacobien
+            // Tout ça vient de la formule du gradient de la transformation que j'ai faite sur papier
+            double dxdxsi = 0.0;
+            double dxdeta = 0.0;
+            double dydxsi = 0.0;
+            double dydeta = 0.0;
+            for(i = 0; i < nLocal; i++) {
+                dxdxsi += x[i] * dphidxsi[i];
+                dxdeta += x[i] * dphideta[i];
+                dydxsi += y[i] * dphidxsi[i];
+                dydeta += y[i] * dphideta[i];
+            }
+            double jacobien = fabs(dxdxsi * dydeta - dxdeta * dydxsi);  // fabs nécessaire
 
-            double A11;
-            double A12;
-            double A21;
-            double A22;
-            double B1;
-            double B2;
-            // Pour faire l'intégrale, on va calculer le jacobien pour chaque point de la règle d'intégration
-            // itération sur les points de la règle d'intégration
-            for(k = 0; k < nLocal; k++) {
-                // On calcule le jacobien
-                // Tout ça vient de la formule du gradient de la transformation que j'ai faite sur papier
-                double dxdxsi = 0;
-                double dxdeta = 0;
-                double dydxsi = 0;
-                double dydeta = 0;
-                for(l = 0; l < nLocal; l++) {
-                    dxdxsi += x[l] * dphidxsi[l];
-                    dxdeta += x[l] * dphideta[l];
-                    dydxsi += y[l] * dphidxsi[l];
-                    dydeta += y[l] * dphideta[l];
+            // Calculons A et B
+            // On calcule d'abord les dérivées des fonctions de forme par rapport à x et y (4 dphidx et 4 dphidy)
+            // d'abord récupéer dxsidx et compagnie par inversion des dxdxsi et compagnie
+            // à nouveau, développements faits sur papier
+            double dxsidx = 1.0 / jacobien * dydeta;
+            double dxsidy = -1.0 / jacobien * dxdeta;
+            double detadx = -1.0 / jacobien * dydxsi;
+            double detady = 1.0 / jacobien * dxdxsi;
+            for(i = 0; i < nLocal; i++) {
+                dphidx[i] = dphidxsi[i] * dxsidx + dphideta[i] * detadx;
+                dphidy[i] = dphidxsi[i] * dxsidy + dphideta[i] * detady;
+            }
+            // On peut maintenant calculer les intégrales
+            // Calcule et place A
+            for (i = 0; i < theSpace->n; i++) {
+                for (j = 0; j < theSpace->n; j++) {
+                    A[mapX[i]][mapX[j]] += (dphidx[i] * a * dphidx[j] +
+                        dphidy[i] * c * dphidy[j]) * jacobien * theRule->weight[iInteg];
+                    A[mapX[i]][mapY[j]] += (dphidx[i] * b * dphidy[j] +
+                        dphidy[i] * c * dphidx[j]) * jacobien * theRule->weight[iInteg];
+                    A[mapY[i]][mapX[j]] += (dphidy[i] * b * dphidx[j] +
+                        dphidx[i] * c * dphidy[j]) * jacobien * theRule->weight[iInteg];
+                    A[mapY[i]][mapY[j]] += (dphidy[i] * a * dphidy[j] +
+                        dphidx[i] * c * dphidx[j]) * jacobien * theRule->weight[iInteg];
                 }
-                double jacobien = fabs(dxdxsi * dydeta - dxdeta * dydxsi);
-                // Calculons A et B
-                // On calcule d'abord les dérivées des fonctions de forme par rapport à x et y (dphidx et dphidy)
-                // d'abord récupéer detadx et compagnie
-                // à nouveau, développement faits sur papier
-                double dxsidx = 1.0 / jacobien * dydeta;
-                double dxsidy = -1.0 / jacobien * dxdeta;
-                double detadx = -1.0 / jacobien * dydxsi;
-                double detady = 1.0 / jacobien * dxdxsi;
-                for(l = 0; l < nLocal; l++) {
-                    dphidx[l] = dphidxsi[l] * detadx + dphideta[l] * detadx;
-                    dphidy[l] = dphidxsi[l] * dxsidy + dphideta[l] * detady;
-                }
-                // On peut maintenant calculer les intégrales des produits des dphidx et dphidy
-                double I_dphidx_dphidx = 0;
-                double I_dphidy_dphidy = 0;
-                double I_dphidx_dphidy = 0;  // je pense que c'est la même que I_dphidy_dphidx
-                for(k = 0; k < nLocal; k++) {
-                    I_dphidx_dphidx += theRule->weight[k] * dphidx[k] * dphidx[k];
-                    I_dphidy_dphidy += theRule->weight[k] * dphidy[k] * dphidy[k];
-                    I_dphidx_dphidy += theRule->weight[k] * dphidx[k] * dphidy[k];  // inverser les deux derniers facteurs ne devrait rien changer
-                }
-                // On peut maintenant calculer les éléments de la matrice A
-                A11 = a * I_dphidx_dphidx + c * I_dphidy_dphidy;
-                A12 = b * I_dphidx_dphidy + c * I_dphidx_dphidy;
-                A21 = b * I_dphidx_dphidy + c * I_dphidx_dphidy;
-                A22 = a * I_dphidy_dphidy + c * I_dphidx_dphidx;
+            }
 
+            // vecteur B
+            for (i = 0; i < theSpace->n; i++) {
+                B[mapY[i]] -= phi[i] * g * rho * jacobien * theRule->weight[iInteg];  // fonction de volume, les autres sont nulles
             }
         }
+        
     }
     
-
-                
   
     int *theConstrainedNodes = theProblem->constrainedNodes;     
     for (int i=0; i < theSystem->size; i++) {
